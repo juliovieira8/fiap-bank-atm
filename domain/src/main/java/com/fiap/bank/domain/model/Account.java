@@ -1,11 +1,13 @@
-package com.fiap.bank.atm.domain.model;
+package com.fiap.bank.domain.model;
 
-import com.fiap.bank.atm.domain.exception.*;
+import com.fiap.bank.domain.exception.*;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class Account extends BaseEntity {
     private static final int MAX_FAILED_ATTEMPTS = 3;
@@ -59,6 +61,29 @@ public class Account extends BaseEntity {
         return Collections.unmodifiableList(transactions);
     }
 
+    // FEAT: Filtragem de transações por tipo usando a Streams API
+    public List<Transaction> getTransactionsByType(TransactionType type) {
+        return transactions.stream()
+                .filter(t -> t.getType() == type)
+                .collect(Collectors.toList());
+    }
+
+    // FEAT: Filtragem de transações por intervalo de datas usando a Streams API
+    public List<Transaction> getTransactionsByPeriod(LocalDateTime start, LocalDateTime end) {
+        return transactions.stream()
+                .filter(t -> !t.getTimestamp().isBefore(start) && !t.getTimestamp().isAfter(end))
+                .collect(Collectors.toList());
+    }
+
+    // FEAT: Calcula o somatório total de saques do dia usando Streams API e Reduce
+    public Money calculateTotalWithdrawnOn(LocalDateTime date) {
+        return transactions.stream()
+                .filter(t -> t.getType() == TransactionType.WITHDRAWAL)
+                .filter(t -> t.getTimestamp().toLocalDate().equals(date.toLocalDate()))
+                .map(Transaction::getAmount)
+                .reduce(Money.ZERO, Money::plus);
+    }
+
     public void authenticate(String pinAttempt) {
         if (blocked) {
             throw new AccountBlockedException("Esta conta está bloqueada por excesso de tentativas de senha.");
@@ -75,7 +100,7 @@ public class Account extends BaseEntity {
                     "Senha incorreta. Tentativa " + failedAttempts + " de " + MAX_FAILED_ATTEMPTS + ".");
         }
 
-        failedAttempts = 0; // Reset attempts on successful login
+        failedAttempts = 0;
     }
 
     public void withdraw(Money amount) {
@@ -138,7 +163,6 @@ public class Account extends BaseEntity {
             throw new IllegalArgumentException("Não é possível realizar transferência para a mesma conta.");
         }
 
-        // Debita a conta de origem
         this.balance = this.balance.minus(amount);
         this.transactions.add(new Transaction(
                 UUID.randomUUID(),
@@ -146,7 +170,6 @@ public class Account extends BaseEntity {
                 amount,
                 "Transf. para Conta " + targetAccount.getAccountNumber()));
 
-        // Credita a conta de destino
         targetAccount.receiveTransfer(this, amount);
     }
 
@@ -159,7 +182,6 @@ public class Account extends BaseEntity {
                 "Transf. de Conta " + sourceAccount.getAccountNumber()));
     }
 
-    // Helper for seeding transactions
     public void seedTransaction(Transaction transaction) {
         this.transactions.add(transaction);
     }
