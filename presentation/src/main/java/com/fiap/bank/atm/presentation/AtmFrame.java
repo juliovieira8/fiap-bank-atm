@@ -4,10 +4,6 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import com.fiap.bank.atm.application.service.AtmService;
 import com.fiap.bank.atm.application.dto.AccountInfoDTO;
 import com.fiap.bank.atm.application.dto.TransactionDTO; 
-import com.fiap.bank.atm.domain.exception.AccountBlockedException;
-import com.fiap.bank.atm.domain.exception.DailyLimitExceededException;
-import com.fiap.bank.atm.domain.exception.InsufficientFundsException;
-import com.fiap.bank.atm.domain.exception.InvalidPinException;
 
 
 import javax.swing.*;
@@ -370,27 +366,15 @@ public class AtmFrame extends javax.swing.JFrame {
                     // Sem ação no confirm para outros estados
                     break;
             }
-        } catch (AccountBlockedException ex) {
-            errorMessage = "CONTA BLOQUEADA!";
-            currentState = ScreenState.ERROR;
-        } catch (InvalidPinException ex) {
-            errorMessage = "SENHA INCORRETA!";
-            currentState = ScreenState.ERROR;
-        } catch (InsufficientFundsException ex) {
-            errorMessage = "SALDO INSUFICIENTE!";
-            currentState = ScreenState.ERROR;
-        } catch (DailyLimitExceededException ex) {
-            errorMessage = "LIMITE DIÁRIO EXCEDIDO!";
-            currentState = ScreenState.ERROR;
-        } catch (IllegalArgumentException ex) {
-            errorMessage = ex.getMessage().toUpperCase();
-            currentState = ScreenState.ERROR;
-        } catch (Exception ex) {
-            errorMessage = "ERRO NO SISTEMA";
-            currentState = ScreenState.ERROR;
+       // ... (seu switch case de estados continua igual) ...
+
+            } catch (RuntimeException ex) {
+                errorMessage = ex.getMessage() != null ? ex.getMessage().toUpperCase() : "ERRO NO SISTEMA";
+                currentState = ScreenState.ERROR;
+            }
+            
+            updateScreen();
         }
-        updateScreen();
-    }
 
     private void handleSideButton(String btnId) {
         if (isAnimationState())
