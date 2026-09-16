@@ -2,12 +2,13 @@ package com.fiap.bank.atm.presentation;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.fiap.bank.atm.application.service.AtmService;
+import com.fiap.bank.atm.application.dto.AccountInfoDTO;
+import com.fiap.bank.atm.application.dto.TransactionDTO; 
 import com.fiap.bank.atm.domain.exception.AccountBlockedException;
 import com.fiap.bank.atm.domain.exception.DailyLimitExceededException;
 import com.fiap.bank.atm.domain.exception.InsufficientFundsException;
 import com.fiap.bank.atm.domain.exception.InvalidPinException;
-import com.fiap.bank.atm.domain.model.Account;
-import com.fiap.bank.atm.domain.model.Transaction;
+
 
 import javax.swing.*;
 import javax.swing.border.LineBorder;
@@ -501,8 +502,8 @@ public class AtmFrame extends javax.swing.JFrame {
         printAnimationTimer.start();
     }
 
-    private void showVirtualReceipt() {
-        Account acc = atmService.getCurrentAccount();
+private void showVirtualReceipt() {
+        AccountInfoDTO acc = atmService.getCurrentAccount();
         if (acc == null)
             return;
 
@@ -511,25 +512,27 @@ public class AtmFrame extends javax.swing.JFrame {
         sb.append("               FIAP BANK                \n");
         sb.append("        COMPROVANTE DE EXTRATO          \n");
         sb.append("========================================\n");
-        sb.append("CONTA: ").append(acc.getAccountNumber()).append("\n");
+        sb.append("CONTA: ").append(acc.accountNumber()).append("\n"); // Usa o Record
         sb.append("DATA: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")))
                 .append("\n");
         sb.append("----------------------------------------\n");
 
-        List<Transaction> txs = acc.getTransactions();
+        // Busca os DTOs de transação direto do serviço
+        List<TransactionDTO> txs = atmService.getStatement();
         int count = 0;
+        
         // Pega as últimas 5 transações
         for (int i = txs.size() - 1; i >= 0 && count < 5; i--) {
-            Transaction tx = txs.get(i);
-            sb.append(String.format("%-12s %-14s %12s\n",
-                    tx.getTimestamp().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")),
-                    tx.getType().getDescription(),
-                    tx.getAmount().format()));
+            TransactionDTO tx = txs.get(i);
+            sb.append(String.format("%-12s %-14s R$ %9.2f\n",
+                    tx.timestamp().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")),
+                    tx.type(),
+                    tx.amount()));
             count++;
         }
 
         sb.append("----------------------------------------\n");
-        sb.append("SALDO ATUAL: ").append(acc.getBalance().format()).append("\n");
+        sb.append(String.format("SALDO ATUAL: R$ %.2f\n", acc.balance()));
         sb.append("========================================\n");
         sb.append("        OBRIGADO POR UTILIZAR           \n");
         sb.append("             FIAP BANK                  \n");
@@ -545,7 +548,7 @@ public class AtmFrame extends javax.swing.JFrame {
 
         txtReceiptPaper = new JTextArea();
         txtReceiptPaper.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        txtReceiptPaper.setBackground(new Color(250, 250, 245)); // Papel térmico esbranquiçado
+        txtReceiptPaper.setBackground(new Color(250, 250, 245)); 
         txtReceiptPaper.setForeground(Color.BLACK);
         txtReceiptPaper.setText(sb.toString());
         txtReceiptPaper.setEditable(false);
@@ -558,7 +561,6 @@ public class AtmFrame extends javax.swing.JFrame {
         receiptDialog.add(new JScrollPane(txtReceiptPaper), BorderLayout.CENTER);
         receiptDialog.add(btnTearOff, BorderLayout.SOUTH);
 
-        // Posição no lado direito da janela principal
         Point atmPos = this.getLocation();
         receiptDialog.setLocation(atmPos.x + this.getWidth() + 10, atmPos.y + 100);
         receiptDialog.setVisible(true);
@@ -611,9 +613,9 @@ public class AtmFrame extends javax.swing.JFrame {
                 break;
 
             case MAIN_MENU:
-                Account currentAcc = atmService.getCurrentAccount();
+                AccountInfoDTO currentAcc = atmService.getCurrentAccount(); // Troca Account por AccountInfoDTO
                 lblScreenHeader.setText("--- MENU PRINCIPAL ---");
-                lblScreenStatus.setText("CONTA ATIVA: " + (currentAcc != null ? currentAcc.getAccountNumber() : ""));
+                lblScreenStatus.setText("CONTA ATIVA: " + (currentAcc != null ? currentAcc.accountNumber() : ""));
                 lblScreenInput.setText("SELECIONE A OPERAÇÃO");
 
                 lblLeftOpt1.setText("> SACAR");
@@ -675,15 +677,15 @@ public class AtmFrame extends javax.swing.JFrame {
                 break;
 
             case SHOW_BALANCE:
-                Account balanceAcc = atmService.getCurrentAccount();
+                AccountInfoDTO balanceAcc = atmService.getCurrentAccount(); // Troca Account por AccountInfoDTO
                 lblScreenHeader.setText("--- CONSULTA DE SALDO ---");
                 lblScreenStatus.setText("SALDO DISPONÍVEL");
-                lblScreenInput.setText(balanceAcc != null ? balanceAcc.getBalance().format() : "R$ 0,00");
-                lblScreenMessage.setText("Limite Diário Restante: " +
-                        (balanceAcc != null
-                                ? balanceAcc.getDailyWithdrawalLimit().minus(balanceAcc.getTotalWithdrawnToday())
-                                        .format()
-                                : "R$ 0,00"));
+                
+                // Formata o double do Record para String de Moeda
+                lblScreenInput.setText(balanceAcc != null ? String.format("R$ %.2f", balanceAcc.balance()) : "R$ 0,00");
+                
+                // Como não passamos o limite diário no DTO, ajustamos a mensagem para algo genérico.
+                lblScreenMessage.setText("Consulte o seu extrato para mais detalhes da conta.");
                 lblRightOpt3.setText("VOLTAR <");
                 btnBlank.setText("");
                 break;
