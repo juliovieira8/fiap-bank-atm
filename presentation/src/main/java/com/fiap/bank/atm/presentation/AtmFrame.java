@@ -2,9 +2,14 @@ package com.fiap.bank.atm.presentation;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.fiap.bank.atm.application.service.AtmService;
+import com.fiap.bank.atm.domain.exception.AccountBlockedException;
+import com.fiap.bank.atm.domain.exception.DailyLimitExceededException;
+import com.fiap.bank.atm.domain.exception.InsufficientFundsException;
+import com.fiap.bank.atm.domain.exception.InvalidPinException;
+import com.fiap.bank.atm.domain.model.Account;
+import com.fiap.bank.atm.domain.model.Transaction;
 import com.fiap.bank.atm.application.dto.AccountInfoDTO;
-import com.fiap.bank.atm.application.dto.TransactionDTO; 
-
+import com.fiap.bank.atm.application.dto.TransactionDTO;
 
 import javax.swing.*;
 import javax.swing.border.LineBorder;
@@ -366,15 +371,27 @@ public class AtmFrame extends javax.swing.JFrame {
                     // Sem ação no confirm para outros estados
                     break;
             }
-       // ... (seu switch case de estados continua igual) ...
-
-            } catch (RuntimeException ex) {
-                errorMessage = ex.getMessage() != null ? ex.getMessage().toUpperCase() : "ERRO NO SISTEMA";
-                currentState = ScreenState.ERROR;
-            }
-            
-            updateScreen();
+        } catch (AccountBlockedException ex) {
+            errorMessage = "CONTA BLOQUEADA!";
+            currentState = ScreenState.ERROR;
+        } catch (InvalidPinException ex) {
+            errorMessage = "SENHA INCORRETA!";
+            currentState = ScreenState.ERROR;
+        } catch (InsufficientFundsException ex) {
+            errorMessage = "SALDO INSUFICIENTE!";
+            currentState = ScreenState.ERROR;
+        } catch (DailyLimitExceededException ex) {
+            errorMessage = "LIMITE DIÁRIO EXCEDIDO!";
+            currentState = ScreenState.ERROR;
+        } catch (IllegalArgumentException ex) {
+            errorMessage = ex.getMessage().toUpperCase();
+            currentState = ScreenState.ERROR;
+        } catch (Exception ex) {
+            errorMessage = "ERRO NO SISTEMA";
+            currentState = ScreenState.ERROR;
         }
+        updateScreen();
+    }
 
     private void handleSideButton(String btnId) {
         if (isAnimationState())
@@ -486,41 +503,39 @@ public class AtmFrame extends javax.swing.JFrame {
         printAnimationTimer.start();
     }
 
-private void showVirtualReceipt() {
-        AccountInfoDTO acc = atmService.getCurrentAccount();
-        if (acc == null)
-            return;
+    private void showVirtualReceipt() {
+    AccountInfoDTO acc = atmService.getCurrentAccount();
+    if (acc == null) return;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("========================================\n");
-        sb.append("               FIAP BANK                \n");
-        sb.append("        COMPROVANTE DE EXTRATO          \n");
-        sb.append("========================================\n");
-        sb.append("CONTA: ").append(acc.accountNumber()).append("\n"); // Usa o Record
-        sb.append("DATA: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")))
-                .append("\n");
-        sb.append("----------------------------------------\n");
+    StringBuilder sb = new StringBuilder();
+    sb.append("----------------------------------------\n");
+    sb.append("               FIAP BANK                \n");
+    sb.append("          COMPROVANTE DE EXTRATO        \n");
+    sb.append("----------------------------------------\n");
+    sb.append("CONTA: ").append(acc.number()).append("\n");
+    sb.append("DATA: ").append(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))).append("\n");
+    sb.append("----------------------------------------\n");
 
-        // Busca os DTOs de transação direto do serviço
-        List<TransactionDTO> txs = atmService.getStatement();
-        int count = 0;
-        
-        // Pega as últimas 5 transações
-        for (int i = txs.size() - 1; i >= 0 && count < 5; i--) {
-            TransactionDTO tx = txs.get(i);
-            sb.append(String.format("%-12s %-14s R$ %9.2f\n",
-                    tx.timestamp().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")),
-                    tx.type(),
-                    tx.amount()));
-            count++;
-        }
+    List<TransactionDTO> txs = atmService.getStatement();
+    int count = 0;
+    for (int i = txs.size() - 1; i >= 0 && count < 5; i--) {
+        TransactionDTO tx = txs.get(i);
+        sb.append(String.format("%-12s %-14s R$ %9.2f\n",
+            tx.createdAt().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")),
+            tx.type(),
+            tx.amount()));
+        count++;
+    }
 
-        sb.append("----------------------------------------\n");
-        sb.append(String.format("SALDO ATUAL: R$ %.2f\n", acc.balance()));
-        sb.append("========================================\n");
-        sb.append("        OBRIGADO POR UTILIZAR           \n");
-        sb.append("             FIAP BANK                  \n");
-        sb.append("========================================\n");
+    sb.append("----------------------------------------\n");
+    sb.append(String.format("SALDO ATUAL: R$ %.2f\n", acc.balance()));
+    sb.append("               OBRIGADO POR UTILIZAR    \n");
+    sb.append("                    FIAP BANK           \n");
+    sb.append("----------------------------------------\n");
+
+    if (receiptDialog != null) {
+        receiptDialog.dispose();
+    }
 
         if (receiptDialog != null) {
             receiptDialog.dispose();
@@ -532,7 +547,7 @@ private void showVirtualReceipt() {
 
         txtReceiptPaper = new JTextArea();
         txtReceiptPaper.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        txtReceiptPaper.setBackground(new Color(250, 250, 245)); 
+        txtReceiptPaper.setBackground(new Color(250, 250, 245)); // Papel térmico esbranquiçado
         txtReceiptPaper.setForeground(Color.BLACK);
         txtReceiptPaper.setText(sb.toString());
         txtReceiptPaper.setEditable(false);
@@ -545,6 +560,7 @@ private void showVirtualReceipt() {
         receiptDialog.add(new JScrollPane(txtReceiptPaper), BorderLayout.CENTER);
         receiptDialog.add(btnTearOff, BorderLayout.SOUTH);
 
+        // Posição no lado direito da janela principal
         Point atmPos = this.getLocation();
         receiptDialog.setLocation(atmPos.x + this.getWidth() + 10, atmPos.y + 100);
         receiptDialog.setVisible(true);
@@ -597,9 +613,9 @@ private void showVirtualReceipt() {
                 break;
 
             case MAIN_MENU:
-                AccountInfoDTO currentAcc = atmService.getCurrentAccount(); // Troca Account por AccountInfoDTO
+                AccountInfoDTO currentAcc = atmService.getCurrentAccount();
                 lblScreenHeader.setText("--- MENU PRINCIPAL ---");
-                lblScreenStatus.setText("CONTA ATIVA: " + (currentAcc != null ? currentAcc.accountNumber() : ""));
+                lblScreenStatus.setText("CONTA ATIVA: " + (currentAcc != null ? currentAcc.number() : ""));
                 lblScreenInput.setText("SELECIONE A OPERAÇÃO");
 
                 lblLeftOpt1.setText("> SACAR");
@@ -661,15 +677,13 @@ private void showVirtualReceipt() {
                 break;
 
             case SHOW_BALANCE:
-                AccountInfoDTO balanceAcc = atmService.getCurrentAccount(); // Troca Account por AccountInfoDTO
+                AccountInfoDTO balanceAcc = atmService.getCurrentAccount();
                 lblScreenHeader.setText("--- CONSULTA DE SALDO ---");
                 lblScreenStatus.setText("SALDO DISPONÍVEL");
-                
-                // Formata o double do Record para String de Moeda
+                // Usa o método balance() do Record e formata como Moeda
                 lblScreenInput.setText(balanceAcc != null ? String.format("R$ %.2f", balanceAcc.balance()) : "R$ 0,00");
-                
-                // Como não passamos o limite diário no DTO, ajustamos a mensagem para algo genérico.
-                lblScreenMessage.setText("Consulte o seu extrato para mais detalhes da conta.");
+                // O limite diário foi omitido do DTO por segurança, então deixamos um texto padrão
+                lblScreenMessage.setText("Limite Diário Restante: Consulta via DTO"); 
                 lblRightOpt3.setText("VOLTAR <");
                 btnBlank.setText("");
                 break;
@@ -713,6 +727,14 @@ private void showVirtualReceipt() {
                 lblScreenInput.setText("OBRIGADO");
                 lblScreenMessage.setText("Retornando em instantes...");
                 btnBlank.setText("");
+    
+                // Dispara um cronômetro de 3 segundos e volta pro menu
+                javax.swing.Timer successTimer = new javax.swing.Timer(3000, evt -> {
+                    currentState = ScreenState.MAIN_MENU; 
+                    updateScreen();
+                });
+                successTimer.setRepeats(false);
+                successTimer.start();
                 break;
 
             case ERROR:
