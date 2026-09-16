@@ -8,6 +8,7 @@ import com.fiap.bank.atm.domain.model.Money;
 import com.fiap.bank.atm.domain.repository.AccountRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class AtmService {
