@@ -9,14 +9,12 @@
     <artifactId>presentation</artifactId>
     
     <dependencies>
-    <!-- Mantém o acesso à camada de Aplicação -->
         <dependency>
             <groupId>com.fiap.bank</groupId>
             <artifactId>application</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-    <!-- Nova injeção do Banco em Memória apenas na hora de rodar -->
         <dependency>
             <groupId>com.fiap.bank</groupId>
             <artifactId>infrastructure</artifactId>
